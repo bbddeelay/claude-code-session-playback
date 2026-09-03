@@ -1,0 +1,17 @@
+{
+  "name": "ccplayback",
+  "version": "1.0.0",
+  "description": "Claude Code の会話セッション(jsonl)をブラウザでプレイバックするデモ用ツール",
+  "license": "MIT",
+  "bin": {
+    "ccplayback": "./bin/ccplayback.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "public"
+  ]
+}
