@@ -10,11 +10,16 @@
   const btnRestart = document.getElementById('btnRestart');
   const progressFill = document.getElementById('progressFill');
   const progressLabel = document.getElementById('progressLabel');
+  const speedSelect = document.getElementById('speedSelect');
 
   let steps = [];
   let index = 0; // 表示済みステップ数 (0..steps.length)
   let animating = false;
   let skipRequested = false;
+  let speed = 1; // 1 = 等速, 2 = 2倍速, 0 = 文字送りなし(即表示)
+
+  const TOOL_INPUT_LIMIT = 600;
+  const TOOL_RESULT_LIMIT = 700;
 
   const TOOL_ICONS = {
     Bash: '$',
@@ -106,25 +111,54 @@
     return t;
   }
 
+  // JSON.stringify だと改行が \n のまま出て読みにくいので、
+  // "キー: 値" 形式(複数行の値はそのまま改行して)で整形する。
   function formatToolInput(step) {
-    const input = step.input || {};
+    const input = step.input;
+    if (input === null || input === undefined) return '';
+    if (typeof input !== 'object') return String(input);
+
     if (step.toolName === 'Bash' && typeof input.command === 'string') {
-      return `$ ${input.command}`;
+      const rest = Object.keys(input).filter((k) => k !== 'command' && k !== 'description');
+      const extra = rest.length ? '\n\n' + rest.map((k) => `${k}: ${stringifyValue(input[k])}`).join('\n') : '';
+      return `$ ${input.command}${extra}`;
     }
-    if (typeof input === 'object') {
-      const keys = Object.keys(input);
-      if (keys.length === 1 && typeof input[keys[0]] === 'string' && input[keys[0]].length < 300) {
-        return `${keys[0]}: ${input[keys[0]]}`;
-      }
-      return JSON.stringify(input, null, 2);
-    }
-    return String(input);
+
+    return Object.keys(input)
+      .map((key) => {
+        const value = stringifyValue(input[key]);
+        return value.includes('\n') ? `${key}:\n${value}` : `${key}: ${value}`;
+      })
+      .join('\n');
   }
 
-  function truncate(text, max) {
+  function stringifyValue(value) {
+    if (typeof value === 'string') return value;
+    return JSON.stringify(value, null, 2);
+  }
+
+  function shorten(text, max) {
     if (!text) return '';
     if (text.length <= max) return text;
-    return text.slice(0, max) + `\n... (省略, 全 ${text.length} 文字)`;
+    return text.slice(0, max);
+  }
+
+  /**
+   * 長すぎるテキストを短縮して表示し、「もっと見る」で全文に差し替える。
+   * 短縮した場合のみボタンを bubble に追加する。
+   */
+  function attachExpander(bubble, bodyEl, fullText, max) {
+    if (!fullText || fullText.length <= max) return;
+
+    const btn = document.createElement('button');
+    btn.className = 'expand-btn';
+    btn.textContent = `▼ もっと見る (全 ${fullText.length} 文字)`;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      bodyEl.textContent = fullText;
+      btn.remove();
+    });
+    bubble.insertBefore(btn, bodyEl.nextSibling);
   }
 
   function sleep(ms) {
@@ -132,8 +166,15 @@
   }
 
   async function typeInto(el, text, { min = 6, max = 22 } = {}) {
+    if (speed === 0) {
+      el.textContent = text;
+      stageEl.scrollTop = stageEl.scrollHeight;
+      return;
+    }
+
     animating = true;
     skipRequested = false;
+    updateProgress();
     el.textContent = '';
     const caret = document.createElement('span');
     caret.className = 'caret';
@@ -149,11 +190,13 @@
       let delay = min + Math.random() * (max - min);
       if (ch === '\n') delay += 60;
       else if ('.,。、!?!?'.includes(ch)) delay += 90;
+      el.scrollTop = el.scrollHeight; // 箱の中でスクロールする要素 (ツール出力) 用
       stageEl.scrollTop = stageEl.scrollHeight;
-      await sleep(delay);
+      await sleep(delay / speed);
     }
     caret.remove();
     animating = false;
+    updateProgress();
   }
 
   function requestSkip() {
@@ -220,7 +263,8 @@
       await typeInto(body, step.text, { min: 6, max: 20 });
     } else if (step.kind === 'tool') {
       const inputText = formatToolInput(step);
-      await typeInto(body, truncate(inputText, 800), { min: 2, max: 9 });
+      await typeInto(body, shorten(inputText, TOOL_INPUT_LIMIT), { min: 2, max: 9 });
+      attachExpander(bubble, body, inputText, TOOL_INPUT_LIMIT);
 
       if (step.result) {
         const resultLabel = document.createElement('span');
@@ -232,7 +276,8 @@
         resultBody.className = 'tool-result' + (step.resultIsError ? ' error' : '');
         bubble.appendChild(resultBody);
 
-        await typeInto(resultBody, truncate(step.result, 1200), { min: 1, max: 6 });
+        await typeInto(resultBody, shorten(step.result, TOOL_RESULT_LIMIT), { min: 1, max: 6 });
+        attachExpander(bubble, resultBody, step.result, TOOL_RESULT_LIMIT);
       }
     }
     stageEl.scrollTop = stageEl.scrollHeight;
@@ -248,7 +293,9 @@
       if (step.kind === 'text') {
         body.innerHTML = renderMarkdown(step.text);
       } else if (step.kind === 'tool') {
-        body.textContent = truncate(formatToolInput(step), 800);
+        const inputText = formatToolInput(step);
+        body.textContent = shorten(inputText, TOOL_INPUT_LIMIT);
+        attachExpander(bubble, body, inputText, TOOL_INPUT_LIMIT);
         if (step.result) {
           const resultLabel = document.createElement('span');
           resultLabel.className = 'tool-result-label';
@@ -256,8 +303,9 @@
           bubble.appendChild(resultLabel);
           const resultBody = document.createElement('div');
           resultBody.className = 'tool-result' + (step.resultIsError ? ' error' : '');
-          resultBody.textContent = truncate(step.result, 1200);
+          resultBody.textContent = shorten(step.result, TOOL_RESULT_LIMIT);
           bubble.appendChild(resultBody);
+          attachExpander(bubble, resultBody, step.result, TOOL_RESULT_LIMIT);
         }
       } else {
         body.textContent = step.text;
@@ -268,9 +316,11 @@
 
   function updateProgress() {
     progressLabel.textContent = `${index} / ${steps.length}`;
+    btnNext.textContent = animating ? '⏩ スキップ' : '進む ▶';
     progressFill.style.width = steps.length ? `${(index / steps.length) * 100}%` : '0%';
     btnBack.disabled = index === 0 || animating;
-    btnNext.disabled = index >= steps.length || animating;
+    // タイプ中も押せるようにしておく (押すと全文表示にスキップする)
+    btnNext.disabled = index >= steps.length && !animating;
     btnRestart.disabled = index === 0 && !animating;
   }
 
@@ -322,12 +372,25 @@
       return;
     }
 
+    // ?start=N で途中から開いた状態にできる (デモの再開用)
+    const startParam = parseInt(new URLSearchParams(location.search).get('start'), 10);
+    if (!Number.isNaN(startParam) && startParam > 0) {
+      index = Math.min(startParam, steps.length);
+      renderStaticUpTo(index);
+    }
+
     updateProgress();
 
-    btnNext.addEventListener('click', goNext);
+    btnNext.addEventListener('click', () => {
+      if (animating) requestSkip();
+      else goNext();
+    });
     btnBack.addEventListener('click', goBack);
     btnRestart.addEventListener('click', restart);
     stageEl.addEventListener('click', requestSkip);
+    speedSelect.addEventListener('change', () => {
+      speed = Number(speedSelect.value);
+    });
 
     document.addEventListener('keydown', (e) => {
       if (e.code === 'ArrowRight' || e.code === 'Space') {

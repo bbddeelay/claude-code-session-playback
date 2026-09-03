@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>ccplayback</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>▶</text></svg>" />
 <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
@@ -27,6 +28,11 @@
       <div class="progress-label" id="progressLabel">0 / 0</div>
     </div>
     <button id="btnNext" class="ctrl-btn primary" title="進む (→ / Space)">進む ▶</button>
+    <select id="speedSelect" class="speed-select" title="表示速度">
+      <option value="1">x1</option>
+      <option value="2">x2</option>
+      <option value="0">即表示</option>
+    </select>
     <button id="btnRestart" class="ctrl-btn ghost" title="最初から">↺ 最初から</button>
   </footer>
 

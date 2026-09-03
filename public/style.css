@@ -71,10 +71,12 @@ body {
 
 .transcript {
   max-width: 820px;
+  min-height: 100%;
   margin: 0 auto;
   padding: 0 20px;
   display: flex;
   flex-direction: column;
+  justify-content: flex-end; /* 件数が少ないうちは下寄せ (チャットらしく見せる) */
   gap: 18px;
 }
 
@@ -171,6 +173,8 @@ body {
   padding: 10px 12px;
   border-radius: 8px;
   margin-top: 6px;
+  max-height: 320px; /* 長い出力で画面が埋まらないように箱の中でスクロールさせる */
+  overflow: auto;
 }
 
 .tool-input {
@@ -267,6 +271,34 @@ pre.codeblock code { font-family: "SFMono-Regular", Menlo, Consolas, monospace; 
 .ctrl-btn.ghost {
   background: transparent;
   color: var(--text-dim);
+}
+
+.speed-select {
+  background: #20242f;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.expand-btn {
+  display: block;
+  margin-top: 8px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.expand-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
 }
 
 .progress-wrap {
